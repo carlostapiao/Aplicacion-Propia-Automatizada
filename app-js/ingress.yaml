@@ -4,6 +4,7 @@ metadata:
   name: it-support-ingress
   annotations:
     kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: / # Esto es vital
 spec:
   rules:
   - http:
@@ -12,6 +13,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: it-support-service
+            name: it-support-service # Asegúrate que este nombre coincida con tu Service
             port:
               number: 80

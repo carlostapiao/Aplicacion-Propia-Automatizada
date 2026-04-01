@@ -143,13 +143,12 @@ resource "azurerm_api_management_api" "ticket_api" {
   api_management_name = azurerm_api_management.apim.name
   revision            = "1"
   display_name        = "Tickets Support API"
-  path                = "tickets-service"
+  
+  # DEJA EL PATH VACÍO o usa un nombre distinto al de la operación
+  path                = "v1" 
+  
   protocols           = ["http", "https"]
-
-  # DNS FIJO del Ingress Controller
-  service_url = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
-
-  # ELIMINADO bloque import que causaba el error 400
+  service_url         = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
 }
 
 resource "azurerm_api_management_api_operation" "get_tickets" {
