@@ -30,7 +30,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: it-support-service
+  name: it-support-service-v4
 spec:
   selector:
     app: it-support-app
