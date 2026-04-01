@@ -34,7 +34,7 @@ jobs:
     # 4. Obtener credenciales de AKS
     - name: Get AKS Credentials
       run: |
-        az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-carlos-v3 --overwrite-existing
+        az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-lab-v3 --overwrite-existing
 
     # 5. Desplegar en Kubernetes
     - name: Deploy to AKS
