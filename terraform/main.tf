@@ -56,7 +56,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
   end_ip_address   = "0.0.0.0"
 }
 
-# --- CONFIGURACIÓN DE HELM ---
+# --- CONFIGURACIÓN DE HELM (Versión Corregida) ---
 provider "helm" {
   kubernetes {
     host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
@@ -66,11 +66,13 @@ provider "helm" {
   }
 }
 
+# Asegúrate de que el recurso de helm_release use esta configuración
 resource "helm_release" "nginx_ingress" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
   namespace        = "ingress-basic"
   create_namespace = true
-  depends_on       = [azurerm_kubernetes_cluster.aks]
+  
+  depends_on = [azurerm_kubernetes_cluster.aks]
 }
