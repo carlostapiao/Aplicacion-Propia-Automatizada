@@ -37,7 +37,7 @@ jobs:
         working-directory: ./terraform
 
       # ==========================================
-      # 2. AZURE LOGIN & ACR PUSH
+      # 2. AZURE LOGIN & ACR PUSH (CORREGIDO)
       # ==========================================
       - name: Azure Login
         uses: azure/login@v1
@@ -47,7 +47,8 @@ jobs:
       - name: Build & Push Docker Image
         run: |
           az acr login --name acrcarlos69v3
-          docker build -t acrcarlos69v3.azurecr.io/it-support-app:v3 .
+          # Cambiamos el contexto a la carpeta app-js donde está el Dockerfile
+          docker build -t acrcarlos69v3.azurecr.io/it-support-app:v3 ./app-js
           docker push acrcarlos69v3.azurecr.io/it-support-app:v3
 
       # ==========================================
@@ -61,18 +62,18 @@ jobs:
 
       - name: Deploy a Kubernetes
         run: |
-          # Aplicamos los YAML de la carpeta app-js
+          # Aplicamos los YAML desde la ruta correcta
           kubectl apply -f app-js/ingress.yaml
           kubectl apply -f app-js/deploy.yaml
           
-          # Forzamos actualización para que use la imagen :v3 recién subida
+          # Actualizamos la imagen para usar la v3
           kubectl set image deployment/it-support-deployment it-support-app=acrcarlos69v3.azurecr.io/it-support-app:v3
           
-          # Reinicio para limpiar cualquier error 404 previo en caché del Pod
+          # Reinicio forzado para aplicar cambios de server.js y limpiar errores 404
           kubectl rollout restart deployment/it-support-deployment
 
       - name: Verificar Estado Final
         run: |
           kubectl get pods
-          kubectl get svc -A
           kubectl get ingress
+          kubectl get svc -A
