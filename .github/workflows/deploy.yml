@@ -1,0 +1,55 @@
+name: 'CI/CD Laboratorio 20 v3'
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  terraform-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Estos secretos deben estar en GitHub Settings
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+    - name: Checkout Código
+      uses: actions/checkout@v3
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # --- PASO 1: TERRAFORM (Infraestructura v3) ---
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+
+    - name: Terraform Init & Apply
+      working-directory: ./terraform
+      run: |
+        terraform init
+        terraform apply -auto-approve
+
+    # --- PASO 2: DOCKER (Compilación ARM64) ---
+    - name: Set up QEMU (Para emular ARM64)
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build and Push to ACR v3
+      run: |
+        az acr login --name acrcarlos69v3
+        docker buildx build --platform linux/arm64 -t acrcarlos69v3.azurecr.io/it-support-app:v2 --push ./app-js
+
+    # --- PASO 3: KUBERNETES (Despliegue) ---
+    - name: Set AKS Context v3
+      run: az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-lab-v3 --overwrite-existing
+
+    - name: Deploy to AKS
+      run: |
+        kubectl apply -f ./ingress.yaml
+        kubectl apply -f ./deploy.yaml

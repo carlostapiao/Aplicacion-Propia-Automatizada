@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+    <title>Soporte IT - Lab 20</title>
+</head>
+<body>
+    <div class="dashboard">
+        <header>
+            <h1>IT Support System <span>Lab 20</span></h1>
+        </header>
+
+        <section class="ticket-form">
+            <h3>Abrir Nuevo Ticket</h3>
+            <div class="form-group">
+                <input type="text" id="user" placeholder="Nombre de usuario">
+                <input type="text" id="subject" placeholder="Asunto del problema">
+                <select id="priority">
+                    <option value="Baja">Baja</option>
+                    <option value="Media" selected>Media</option>
+                    <option value="Alta">Alta</option>
+                </select>
+                <button onclick="crearTicket()">Crear Ticket</button>
+            </div>
+        </section>
+
+        <section class="ticket-list">
+            <h3>Tickets Activos</h3>
+            <table id="ticketTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Asunto</th>
+                        <th>Prioridad</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </div>
+
+    <script>
+        async function cargarTickets() {
+            const res = await fetch('/api/tickets');
+            const data = await res.json();
+            const tbody = document.querySelector("#ticketTable tbody");
+            tbody.innerHTML = data.map(t => `
+                <tr>
+                    <td>#${t.id}</td>
+                    <td>${t.usuario}</td>
+                    <td>${t.asunto}</td>
+                    <td><span class="badge ${t.prioridad}">${t.prioridad}</span></td>
+                    <td>${t.estado}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function crearTicket() {
+            const ticket = {
+                usuario: document.getElementById('user').value,
+                asunto: document.getElementById('subject').value,
+                prioridad: document.getElementById('priority').value
+            };
+            
+            await fetch('/api/tickets', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(ticket)
+            });
+            cargarTickets();
+        }
+
+        cargarTickets();
+    </script>
+</body>
+</html>
