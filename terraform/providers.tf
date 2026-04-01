@@ -2,19 +2,25 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 4.0"
+      version = "~> 3.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
     }
   }
 }
 
 provider "azurerm" {
-  subscription_id = "e690edad-0257-4dec-b4c9-08e163433edb"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-    api_management {
-      purge_soft_delete_on_destroy = true
-    }
+  features {}
+}
+
+# --- PROVEEDOR HELM (Sintaxis limpia) ---
+provider "helm" {
+  kubernetes {
+    host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
+    client_certificate     = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_certificate)
+    client_key             = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_key)
+    cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate)
   }
 }

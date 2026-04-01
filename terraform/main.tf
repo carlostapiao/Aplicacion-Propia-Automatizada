@@ -66,13 +66,13 @@ provider "helm" {
   }
 }
 
-# Asegúrate de que el recurso de helm_release use esta configuración
 resource "helm_release" "nginx_ingress" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
   namespace        = "ingress-basic"
   create_namespace = true
-  
+
+  # ESTO ES VITAL: Helm no puede instalarse si el AKS no existe aún
   depends_on = [azurerm_kubernetes_cluster.aks]
 }
