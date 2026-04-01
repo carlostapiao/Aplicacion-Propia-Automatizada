@@ -1,4 +1,4 @@
-name: "V3: Infrastructure & App Deployment"
+name: "V3: Full Infrastructure & ARM64 Deployment"
 
 on:
   push:
@@ -37,19 +37,27 @@ jobs:
         working-directory: ./terraform
 
       # ==========================================
-      # 2. AZURE LOGIN & ACR PUSH (CORREGIDO)
+      # 2. DOCKER BUILDX (SOPORTE PARA ARM64)
       # ==========================================
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Build & Push Docker Image
+      - name: Build & Push Docker Image (Multi-platform)
         run: |
           az acr login --name acrcarlos69v3
-          # Cambiamos el contexto a la carpeta app-js donde está el Dockerfile
-          docker build -t acrcarlos69v3.azurecr.io/it-support-app:v3 ./app-js
-          docker push acrcarlos69v3.azurecr.io/it-support-app:v3
+          # Buildx emula ARM64 para que sea compatible con tu nodo de Azure
+          docker buildx build \
+            --platform linux/arm64 \
+            -t acrcarlos69v3.azurecr.io/it-support-app:v3 \
+            ./app-js --push
 
       # ==========================================
       # 3. KUBERNETES DEPLOYMENT
@@ -62,14 +70,14 @@ jobs:
 
       - name: Deploy a Kubernetes
         run: |
-          # Aplicamos los YAML desde la ruta correcta
+          # Aplicar configuraciones de red y despliegue
           kubectl apply -f app-js/ingress.yaml
           kubectl apply -f app-js/deploy.yaml
           
-          # Actualizamos la imagen para usar la v3
+          # Forzar a los pods a usar la imagen v3 recién subida
           kubectl set image deployment/it-support-deployment it-support-app=acrcarlos69v3.azurecr.io/it-support-app:v3
           
-          # Reinicio forzado para aplicar cambios de server.js y limpiar errores 404
+          # Reinicio para asegurar que el contenedor cargue el binario correcto
           kubectl rollout restart deployment/it-support-deployment
 
       - name: Verificar Estado Final
