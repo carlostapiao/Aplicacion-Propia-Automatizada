@@ -123,3 +123,11 @@ resource "helm_release" "nginx_ingress" {
   # CRÍTICO: Helm no puede instalarse si el clúster AKS no ha terminado de crearse.
   depends_on = [azurerm_kubernetes_cluster.aks]
 }
+
+# Asignación de rol para que el AKS pueda leer del ACR automáticamente
+resource "azurerm_role_assignment" "aks_to_acr" {
+  principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
+  role_definition_name             = "AcrPull"
+  scope                            = azurerm_container_registry.acr.id
+  skip_service_principal_aad_check = true
+}
