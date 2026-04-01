@@ -1,10 +1,13 @@
 const express = require('express');
 const sql = require('mssql');
+const path = require('path'); // Añadido para manejar rutas de archivos
 const app = express();
 
 app.use(express.json());
 
-// Configuración de la base de datos (Usando las variables del deploy.yaml)
+// 1. CONFIGURACIÓN: Permitir que /tickets y /tickets/ funcionen igual
+app.set('strict routing', false);
+
 const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
@@ -16,12 +19,7 @@ const dbConfig = {
     }
 };
 
-// Ruta Raíz (Para verificar que el pod responde)
-app.get('/', (req, res) => {
-    res.send('Servidor IT funcionando correctamente v3');
-});
-
-// RUTA GET: Listar Tickets (La que pide el APIM)
+// 2. RUTAS DE API (Deben ir ANTES de express.static)
 app.get('/tickets', async (req, res) => {
     try {
         let pool = await sql.connect(dbConfig);
@@ -32,7 +30,6 @@ app.get('/tickets', async (req, res) => {
     }
 });
 
-// RUTA POST: Crear Ticket (La que pide el APIM)
 app.post('/tickets', async (req, res) => {
     try {
         const { titulo, descripcion } = req.body;
@@ -47,8 +44,17 @@ app.post('/tickets', async (req, res) => {
     }
 });
 
+// 3. ARCHIVOS ESTÁTICOS Y RUTA RAÍZ (Al final para no pisar la API)
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+    res.send('Servidor IT funcionando correctamente v3');
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor IT en puerto ${PORT}`);
-    sql.connect(dbConfig).then(() => console.log('Conectado a Azure SQL con éxito'));
+    sql.connect(dbConfig)
+        .then(() => console.log('Conectado a Azure SQL con éxito'))
+        .catch(err => console.log('Error inicial de conexión SQL:', err));
 });
