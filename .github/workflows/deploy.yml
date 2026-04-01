@@ -21,14 +21,18 @@ jobs:
         uses: hashicorp/setup-terraform@v2
 
       - name: Terraform Init
+        # Entra a la carpeta terraform para inicializar
         run: terraform init
+        working-directory: ./terraform
 
       - name: Terraform Apply
+        # Aplica los cambios desde la carpeta terraform
         run: terraform apply -auto-approve
+        working-directory: ./terraform
 
   build-and-deploy-app:
     name: '2. Build and Deploy App'
-    needs: terraform-infra # Espera a que la infraestructura exista
+    needs: terraform-infra
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -42,7 +46,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      # Construcción para AMD64 para evitar el Exec Format Error
       - name: Build & Push Docker v4
         run: |
           az acr login --name acrcarlos69v4
