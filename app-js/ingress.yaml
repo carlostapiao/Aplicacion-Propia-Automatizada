@@ -4,8 +4,7 @@ metadata:
   name: it-support-ingress
   annotations:
     kubernetes.io/ingress.class: nginx
-    # Esto asegura que si llamas a /tickets, el pod reciba /tickets
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Eliminamos rewrite-target para que la ruta /tickets llegue limpia al pod
 spec:
   rules:
   - http:
