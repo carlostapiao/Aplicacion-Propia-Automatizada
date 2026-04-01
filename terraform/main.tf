@@ -1,10 +1,27 @@
-# 1. Grupo de Recursos
+# 1. Configuración de Versiones y Proveedores
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+# 2. Infraestructura Base (v3)
 resource "azurerm_resource_group" "rg" {
   name     = "RG-Laboratorio20-v3"
   location = "centralus"
 }
 
-# 2. Azure Container Registry (Nombre global único)
 resource "azurerm_container_registry" "acr" {
   name                = "acrcarlos69v3"
   resource_group_name = azurerm_resource_group.rg.name
@@ -13,7 +30,6 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# 3. Azure Kubernetes Service (AKS)
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "aks-lab-v3"
   location            = azurerm_resource_group.rg.location
@@ -23,7 +39,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   default_node_pool {
     name       = "default"
     node_count = 1
-    vm_size    = "Standard_B2ps_v2" # Manteniendo ARM64
+    vm_size    = "Standard_B2ps_v2" # ARM64
   }
 
   identity {
@@ -31,7 +47,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
-# 4. Azure SQL Server
+# 3. Base de Datos SQL (v3)
 resource "azurerm_mssql_server" "sqlserver" {
   name                         = "sqlserver-carlos-v3"
   resource_group_name          = azurerm_resource_group.rg.name
@@ -41,14 +57,12 @@ resource "azurerm_mssql_server" "sqlserver" {
   administrator_login_password = "Password1234!" 
 }
 
-# 5. Base de Datos SQL
 resource "azurerm_mssql_database" "db" {
   name      = "ticketsdb-v3"
   server_id = azurerm_mssql_server.sqlserver.id
   sku_name  = "S0"
 }
 
-# 6. Regla de Firewall para Servicios de Azure
 resource "azurerm_mssql_firewall_rule" "allow_azure" {
   name             = "AllowAzureServices"
   server_id        = azurerm_mssql_server.sqlserver.id
@@ -56,7 +70,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
   end_ip_address   = "0.0.0.0"
 }
 
-# --- CONFIGURACIÓN DE HELM (Versión Corregida) ---
+# 4. Configuración de Helm (Solo UNA vez aquí)
 provider "helm" {
   kubernetes {
     host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
@@ -66,13 +80,13 @@ provider "helm" {
   }
 }
 
+# 5. Ingress Controller (Instalación automática)
 resource "helm_release" "nginx_ingress" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
   namespace        = "ingress-basic"
   create_namespace = true
-
-  # ESTO ES VITAL: Helm no puede instalarse si el AKS no existe aún
+  
   depends_on = [azurerm_kubernetes_cluster.aks]
 }
