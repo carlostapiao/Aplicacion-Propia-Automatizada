@@ -1,8 +1,13 @@
-name: 'CI/CD Laboratorio 20 v3'
+name: "V3: Infrastructure & App Deployment"
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   terraform-and-deploy:
@@ -14,41 +19,60 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
     steps:
-    - name: Checkout Código
-      uses: actions/checkout@v3
+      - name: Checkout Código
+        uses: actions/checkout@v3
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      # ==========================================
+      # 1. TERRAFORM: INFRAESTRUCTURA
+      # ==========================================
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
 
-    # --- PASO 1: TERRAFORM ---
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform
 
-    - name: Terraform Init & Apply
-      working-directory: ./terraform
-      run: |
-        terraform init
-        terraform apply -auto-approve
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: ./terraform
 
-    # --- PASO 2: DOCKER (ARM64) ---
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      # ==========================================
+      # 2. AZURE LOGIN & ACR PUSH
+      # ==========================================
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Build & Push Docker Image
+        run: |
+          az acr login --name acrcarlos69v3
+          docker build -t acrcarlos69v3.azurecr.io/it-support-app:v3 .
+          docker push acrcarlos69v3.azurecr.io/it-support-app:v3
 
-    - name: Build and Push to ACR v3
-      run: |
-        az acr login --name acrcarlos69v3
-        docker buildx build --platform linux/arm64 -t acrcarlos69v3.azurecr.io/it-support-app:v2 --push ./app-js
+      # ==========================================
+      # 3. KUBERNETES DEPLOYMENT
+      # ==========================================
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: 'RG-Laboratorio20-v3'
+          cluster-name: 'aks-lab-v3'
 
-    # --- PASO 3: KUBERNETES (Rutas actualizadas según tu imagen) ---
-    - name: Set AKS Context v3
-      run: az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-lab-v3 --overwrite-existing
+      - name: Deploy a Kubernetes
+        run: |
+          # Aplicamos los YAML de la carpeta app-js
+          kubectl apply -f app-js/ingress.yaml
+          kubectl apply -f app-js/deploy.yaml
+          
+          # Forzamos actualización para que use la imagen :v3 recién subida
+          kubectl set image deployment/it-support-deployment it-support-app=acrcarlos69v3.azurecr.io/it-support-app:v3
+          
+          # Reinicio para limpiar cualquier error 404 previo en caché del Pod
+          kubectl rollout restart deployment/it-support-deployment
 
-    - name: Deploy to AKS
-      run: |
-        kubectl apply -f ./app-js/ingress.yaml
-        kubectl apply -f ./app-js/deploy.yaml
+      - name: Verificar Estado Final
+        run: |
+          kubectl get pods
+          kubectl get svc -A
+          kubectl get ingress

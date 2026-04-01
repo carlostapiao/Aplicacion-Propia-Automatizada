@@ -1,61 +1,25 @@
 const express = require('express');
-const sql = require('mssql');
-const path = require('path');
-
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(express.json());
-app.use(express.static('public'));
 
-// Configuración de conexión usando Variables de Entorno (Seguridad)
-const dbConfig = {
-    user: process.env.DB_USER || 'sqladmin',
-    password: process.env.DB_PASSWORD || 'Password1234!',
-    server: process.env.DB_SERVER || 'sqlserver-carlos-lab.database.windows.net',
-    database: process.env.DB_NAME || 'ticketsdb',
-    options: {
-        encrypt: true, // Necesario para Azure
-        trustServerCertificate: false
-    }
-};
-
-// Función para conectar a la DB
-async function connectDB() {
-    try {
-        await sql.connect(dbConfig);
-        console.log("Conectado a Azure SQL con éxito");
-    } catch (err) {
-        console.error("Error de conexión a SQL:", err);
-    }
-}
-
-// 1. OBTENER TICKETS (GET)
-app.get('/api/tickets', async (req, res) => {
-    try {
-        const result = await sql.query`SELECT * FROM Tickets ORDER BY id DESC`;
-        res.json(result.recordset);
-    } catch (err) {
-        res.status(500).json({ error: "Error al leer tickets", message: err.message });
-    }
+// RUTA DE PRUEBA (Para saber si el pod está vivo)
+app.get('/', (req, res) => {
+    res.send('API de Tickets v3 funcionando!');
 });
 
-// 2. CREAR TICKET (POST)
-app.post('/api/tickets', async (req, res) => {
-    const { usuario, asunto, prioridad } = req.body;
-    try {
-        await sql.query`
-            INSERT INTO Tickets (usuario, asunto, prioridad, estado)
-            VALUES (${usuario}, ${asunto}, ${prioridad}, 'Abierto')
-        `;
-        res.json({ status: "success", message: "Ticket guardado en SQL" });
-    } catch (err) {
-        res.status(500).json({ error: "Error al guardar ticket", message: err.message });
-    }
+// RUTA GET: Listar tickets
+app.get('/tickets', (req, res) => {
+    // Aquí va tu lógica de SQL
+    res.status(200).json({ message: "Lista de tickets obtenida" });
 });
 
-// Iniciar servidor y conectar DB
+// RUTA POST: Crear ticket
+app.post('/tickets', (req, res) => {
+    // Aquí va tu lógica de SQL
+    res.status(201).json({ message: "Ticket creado con éxito" });
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor IT en puerto ${PORT}`);
-    connectDB();
+    console.log(`Servidor corriendo en puerto ${PORT}`);
 });

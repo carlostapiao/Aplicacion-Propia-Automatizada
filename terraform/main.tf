@@ -144,8 +144,9 @@ resource "azurerm_api_management_api" "ticket_api" {
   revision            = "1"
   display_name        = "Tickets Support API"
   
-  # DEJA EL PATH VACÍO o usa un nombre distinto al de la operación
-  path                = "v1" 
+  # Cambia esto a un string vacío o solo "/"
+  # Si pones "v1", la URL final será .../v1/tickets
+  path                = "" 
   
   protocols           = ["http", "https"]
   service_url         = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
