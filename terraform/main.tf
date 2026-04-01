@@ -167,7 +167,10 @@ resource "azurerm_api_management_api_operation" "get_tickets" {
   method              = "GET"
   url_template        = "/tickets"
 
-  responses { status_code = 200 }
+  # CORRECCIÓN: 'response' en singular
+  response {
+    status_code = 200
+  }
 }
 
 # OPERACIÓN POST AUTOMATIZADA
@@ -180,5 +183,8 @@ resource "azurerm_api_management_api_operation" "post_ticket" {
   method              = "POST"
   url_template        = "/tickets"
 
-  responses { status_code = 201 }
+  # CORRECCIÓN: 'response' en singular
+  response {
+    status_code = 201
+  }
 }
