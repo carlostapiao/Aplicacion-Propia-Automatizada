@@ -1,10 +1,7 @@
 # =============================================================================
-# 1. CONFIGURACIÓN DE TERRAFORM Y BACKEND
+# 1. CONFIGURACIÓN DE TERRAFORM Y BACKEND REMOTO
 # =============================================================================
 terraform {
-  # El backend "azurerm" le dice a Terraform que guarde el archivo .tfstate 
-  # (la memoria de lo que ha creado) en una Storage Account de Azure.
-  # Esto permite que GitHub Actions no intente duplicar recursos.
   backend "azurerm" {
     resource_group_name  = "rg-apppersonal-tfstate"
     storage_account_name = "stcarlosv3state"
@@ -12,44 +9,39 @@ terraform {
     key                  = "terraform.tfstate"
   }
 
-  # Definimos qué proveedores externos necesitamos y sus versiones.
   required_providers {
     azurerm = {
-      source  = "hashicorp/azurerm" # Para crear recursos en Azure (RG, AKS, SQL)
+      source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
     helm = {
-      source  = "hashicorp/helm"    # Para instalar aplicaciones en Kubernetes (Ingress)
+      source  = "hashicorp/helm"
       version = "~> 2.0"
     }
   }
 }
 
-# Configuramos el proveedor de Azure con sus características por defecto.
 provider "azurerm" {
   features {}
 }
 
 # =============================================================================
-# 2. INFRAESTRUCTURA DE RED Y CONTENEDORES
+# 2. INFRAESTRUCTURA BASE (RG, ACR, AKS)
 # =============================================================================
 
-# Grupo de Recursos: El contenedor lógico donde vivirán todos los recursos v3.
 resource "azurerm_resource_group" "rg" {
   name     = "RG-Laboratorio20-v3"
   location = "centralus"
 }
 
-# Azure Container Registry (ACR): El almacén privado para tus imágenes Docker.
 resource "azurerm_container_registry" "acr" {
   name                = "acrcarlos69v3"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
-  admin_enabled       = true # Permite usar credenciales de admin para el despliegue
+  admin_enabled       = true
 }
 
-# Azure Kubernetes Service (AKS): El orquestador donde correrá tu App Node.js.
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "aks-lab-v3"
   location            = azurerm_resource_group.rg.location
@@ -58,21 +50,27 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   default_node_pool {
     name       = "default"
-    node_count = 1                  # Solo 1 nodo para ahorrar costos de laboratorio
-    vm_size    = "Standard_B2ps_v2" # IMPORTANTE: Serie "p" para arquitectura ARM64
+    node_count = 1
+    vm_size    = "Standard_B2ps_v2" # ARM64
   }
 
-  # Identidad asignada por el sistema para que el clúster gestione sus propios recursos.
   identity {
     type = "SystemAssigned"
   }
 }
 
+# PERMISO CRÍTICO: AKS extrae imágenes de ACR
+resource "azurerm_role_assignment" "aks_to_acr" {
+  principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
+  role_definition_name             = "AcrPull"
+  scope                            = azurerm_container_registry.acr.id
+  skip_service_principal_aad_check = true
+}
+
 # =============================================================================
-# 3. BASE DE DATOS SQL (PERSISTENCIA DE DATOS)
+# 3. BASE DE DATOS SQL
 # =============================================================================
 
-# Servidor de Base de Datos SQL: El motor que hospeda la base de datos.
 resource "azurerm_mssql_server" "sqlserver" {
   name                         = "sqlserver-carlos-v3"
   resource_group_name          = azurerm_resource_group.rg.name
@@ -82,26 +80,23 @@ resource "azurerm_mssql_server" "sqlserver" {
   administrator_login_password = "Password1234!" 
 }
 
-# Base de Datos SQL Individual: Donde se guardarán los tickets de soporte.
 resource "azurerm_mssql_database" "db" {
   name      = "ticketsdb-v3"
   server_id = azurerm_mssql_server.sqlserver.id
-  sku_name  = "S0" # Nivel básico para pruebas
+  sku_name  = "S0"
 }
 
-# Regla de Firewall: Permite que otros servicios de Azure (como AKS) lleguen al SQL.
 resource "azurerm_mssql_firewall_rule" "allow_azure" {
   name             = "AllowAzureServices"
   server_id        = azurerm_mssql_server.sqlserver.id
-  start_ip_address = "0.0.0.0" # IP especial que significa "Cualquier servicio de Azure"
+  start_ip_address = "0.0.0.0"
   end_ip_address   = "0.0.0.0"
 }
 
 # =============================================================================
-# 4. CONFIGURACIÓN DE HELM E INGRESS (GESTIÓN DE TRÁFICO)
+# 4. HELM: INGRESS CONTROLLER CON DNS FIJO
 # =============================================================================
 
-# El proveedor de Helm necesita las credenciales del AKS que acabamos de crear.
 provider "helm" {
   kubernetes {
     host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
@@ -111,23 +106,79 @@ provider "helm" {
   }
 }
 
-# NGINX Ingress Controller: Instala el balanceador que recibirá el tráfico de internet
-# y lo enviará a tu aplicación dentro de Kubernetes.
 resource "helm_release" "nginx_ingress" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
   namespace        = "ingress-basic"
-  create_namespace = true # Crea el namespace "ingress-basic" automáticamente
+  create_namespace = true
   
-  # CRÍTICO: Helm no puede instalarse si el clúster AKS no ha terminado de crearse.
+  # DNS FIJO: Esto crea el dominio lab-carlos-v3.centralus.cloudapp.azure.com
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
+    value = "lab-carlos-tickets-v3" 
+  }
+
   depends_on = [azurerm_kubernetes_cluster.aks]
 }
 
-# Asignación de rol para que el AKS pueda leer del ACR automáticamente
-resource "azurerm_role_assignment" "aks_to_acr" {
-  principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
-  role_definition_name             = "AcrPull"
-  scope                            = azurerm_container_registry.acr.id
-  skip_service_principal_aad_check = true
+# =============================================================================
+# 5. API MANAGEMENT (APIM) COMPLETAMENTE AUTOMATIZADO
+# =============================================================================
+
+resource "azurerm_api_management" "apim" {
+  name                = "apim-carlos-lab-v3"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  publisher_name      = "Carlos Lab"
+  publisher_email     = "admin@tudominio.com"
+  sku_name            = "Consumption_0" # Económico y rápido
+
+  identity {
+    type = "SystemAssigned"
+  }
+}
+
+resource "azurerm_api_management_api" "ticket_api" {
+  name                = "tickets-api"
+  resource_group_name = azurerm_resource_group.rg.name
+  api_management_name = azurerm_api_management.apim.name
+  revision            = "1"
+  display_name        = "Tickets Support API"
+  path                = "tickets-service"
+  protocols           = ["https"]
+
+  # APUNTA AL DNS FIJO DEL INGRESS (No importa si la IP cambia)
+  service_url = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
+
+  import {
+    content_format = "swagger-link-json"
+    content_value  = "http://conferenceapi.azurewebsites.net/?format=json" # Placeholder
+  }
+}
+
+# OPERACIÓN GET AUTOMATIZADA
+resource "azurerm_api_management_api_operation" "get_tickets" {
+  operation_id        = "get-tickets"
+  api_name            = azurerm_api_management_api.ticket_api.name
+  api_management_name = azurerm_api_management.apim.name
+  resource_group_name = azurerm_resource_group.rg.name
+  display_name        = "Listar Tickets"
+  method              = "GET"
+  url_template        = "/tickets"
+
+  responses { status_code = 200 }
+}
+
+# OPERACIÓN POST AUTOMATIZADA
+resource "azurerm_api_management_api_operation" "post_ticket" {
+  operation_id        = "create-ticket"
+  api_name            = azurerm_api_management_api.ticket_api.name
+  api_management_name = azurerm_api_management.apim.name
+  resource_group_name = azurerm_resource_group.rg.name
+  display_name        = "Crear Ticket"
+  method              = "POST"
+  url_template        = "/tickets"
+
+  responses { status_code = 201 }
 }
