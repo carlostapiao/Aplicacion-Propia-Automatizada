@@ -1,87 +1,48 @@
-name: "V3: Full Infrastructure & ARM64 Deployment"
+name: Deploy IT Support System v3
 
 on:
   push:
     branches:
-      - main
-
-permissions:
-  id-token: write
-  contents: read
+      - main  # Cambia a 'master' si esa es tu rama principal
 
 jobs:
-  terraform-and-deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
     steps:
-      - name: Checkout Código
-        uses: actions/checkout@v3
+    - name: Checkout Code
+      uses: actions/checkout@v3
 
-      # ==========================================
-      # 1. TERRAFORM: INFRAESTRUCTURA
-      # ==========================================
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+    # 1. Login en Azure
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Terraform Init
-        run: terraform init
-        working-directory: ./terraform
+    # 2. Configurar Docker Buildx (Necesario para especificar plataformas)
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: ./terraform
+    # 3. Build y Push a Azure Container Registry (ACR)
+    - name: Build & Push Docker Image (AMD64)
+      run: |
+        az acr login --name acrcarlos69v3
+        docker buildx build \
+          --platform linux/amd64 \
+          -t acrcarlos69v3.azurecr.io/it-support-app:v3 \
+          ./app-js --push
 
-      # ==========================================
-      # 2. DOCKER BUILDX (SOPORTE PARA ARM64)
-      # ==========================================
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+    # 4. Obtener credenciales de AKS
+    - name: Get AKS Credentials
+      run: |
+        az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-carlos-v3 --overwrite-existing
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Build & Push Docker Image (Multi-platform)
-        run: |
-          az acr login --name acrcarlos69v3
-          # Buildx emula ARM64 para que sea compatible con tu nodo de Azure
-          docker buildx build \
-            --platform linux/arm64 \
-            -t acrcarlos69v3.azurecr.io/it-support-app:v3 \
-            ./app-js --push
-
-      # ==========================================
-      # 3. KUBERNETES DEPLOYMENT
-      # ==========================================
-      - name: Set AKS Context
-        uses: azure/aks-set-context@v3
-        with:
-          resource-group: 'RG-Laboratorio20-v3'
-          cluster-name: 'aks-lab-v3'
-
-      - name: Deploy a Kubernetes
-        run: |
-          # Aplicar configuraciones de red y despliegue
-          kubectl apply -f app-js/ingress.yaml
-          kubectl apply -f app-js/deploy.yaml
-          
-          # Forzar a los pods a usar la imagen v3 recién subida
-          kubectl set image deployment/it-support-deployment it-support-app=acrcarlos69v3.azurecr.io/it-support-app:v3
-          
-          # Reinicio para asegurar que el contenedor cargue el binario correcto
-          kubectl rollout restart deployment/it-support-deployment
-
-      - name: Verificar Estado Final
-        run: |
-          kubectl get pods
-          kubectl get ingress
-          kubectl get svc -A
+    # 5. Desplegar en Kubernetes
+    - name: Deploy to AKS
+      run: |
+        kubectl apply -f app-js/deploy.yaml
+        kubectl apply -f app-js/ingress.yaml
+        
+    # 6. Forzar reinicio para asegurar que baje la nueva imagen AMD64
+    - name: Refresh Pods
+      run: |
+        kubectl rollout restart deployment it-support-deployment
