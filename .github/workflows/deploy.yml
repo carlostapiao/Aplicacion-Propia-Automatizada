@@ -1,9 +1,8 @@
-name: Deploy IT Support System v3
+name: Deploy IT Support v4
 
 on:
   push:
-    branches:
-      - main  # Cambia a 'master' si esa es tu rama principal
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
@@ -12,37 +11,28 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    # 1. Login en Azure
     - name: Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # 2. Configurar Docker Buildx (Necesario para especificar plataformas)
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 
-    # 3. Build y Push a Azure Container Registry (ACR)
     - name: Build & Push Docker Image (AMD64)
       run: |
         az acr login --name acrcarlos69v3
         docker buildx build \
           --platform linux/amd64 \
-          -t acrcarlos69v3.azurecr.io/it-support-app:v3 \
+          -t acrcarlos69v3.azurecr.io/it-support-app:v4 \
           ./app-js --push
 
-    # 4. Obtener credenciales de AKS
     - name: Get AKS Credentials
       run: |
-        az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-lab-v3 --overwrite-existing
+        az aks get-credentials --resource-group RG-Laboratorio20-v3 --name aks-carlos-v3 --overwrite-existing
 
-    # 5. Desplegar en Kubernetes
     - name: Deploy to AKS
       run: |
         kubectl apply -f app-js/deploy.yaml
         kubectl apply -f app-js/ingress.yaml
-        
-    # 6. Forzar reinicio para asegurar que baje la nueva imagen AMD64
-    - name: Refresh Pods
-      run: |
         kubectl rollout restart deployment it-support-deployment

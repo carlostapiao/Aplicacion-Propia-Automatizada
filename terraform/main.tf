@@ -6,7 +6,7 @@ terraform {
     resource_group_name  = "rg-apppersonal-tfstate"
     storage_account_name = "stcarlosv3state"
     container_name       = "tfstate-apppersonal"
-    key                  = "terraform.tfstate"
+    key                  = "terraform-v4.tfstate" # Cambiado a v4
   }
 
   required_providers {
@@ -26,16 +26,16 @@ provider "azurerm" {
 }
 
 # =============================================================================
-# 2. INFRAESTRUCTURA BASE
+# 2. INFRAESTRUCTURA BASE v4
 # =============================================================================
 
 resource "azurerm_resource_group" "rg" {
-  name     = "RG-Laboratorio20-v3"
+  name     = "RG-Laboratorio20-v4"
   location = "centralus"
 }
 
 resource "azurerm_container_registry" "acr" {
-  name                = "acrcarlos69v3"
+  name                = "acrcarlos69v4"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
@@ -43,15 +43,15 @@ resource "azurerm_container_registry" "acr" {
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
-  name                = "aks-lab-v3"
+  name                = "aks-lab-v4"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  dns_prefix          = "akscarlosv3"
+  dns_prefix          = "akscarlosv4"
 
   default_node_pool {
     name       = "default"
     node_count = 1
-    vm_size    = "Standard_B2ps_v2" 
+    vm_size    = "Standard_DS2_v2" 
   }
 
   identity {
@@ -67,11 +67,11 @@ resource "azurerm_role_assignment" "aks_to_acr" {
 }
 
 # =============================================================================
-# 3. BASE DE DATOS SQL
+# 3. BASE DE DATOS SQL v4
 # =============================================================================
 
 resource "azurerm_mssql_server" "sqlserver" {
-  name                         = "sqlserver-carlos-v3"
+  name                         = "sqlserver-carlos-v4"
   resource_group_name          = azurerm_resource_group.rg.name
   location                     = azurerm_resource_group.rg.location
   version                      = "12.0"
@@ -80,7 +80,7 @@ resource "azurerm_mssql_server" "sqlserver" {
 }
 
 resource "azurerm_mssql_database" "db" {
-  name      = "ticketsdb-v3"
+  name      = "ticketsdb-v4"
   server_id = azurerm_mssql_server.sqlserver.id
   sku_name  = "S0"
 }
@@ -93,7 +93,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
 }
 
 # =============================================================================
-# 4. HELM E INGRESS CON DNS
+# 4. HELM E INGRESS CON DNS v4
 # =============================================================================
 
 provider "helm" {
@@ -114,18 +114,18 @@ resource "helm_release" "nginx_ingress" {
   
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
-    value = "lab-carlos-tickets-v3" 
+    value = "lab-carlos-tickets-v4" 
   }
 
   depends_on = [azurerm_kubernetes_cluster.aks]
 }
 
 # =============================================================================
-# 5. API MANAGEMENT (APIM) - CORREGIDO
+# 5. API MANAGEMENT (APIM) v4
 # =============================================================================
 
 resource "azurerm_api_management" "apim" {
-  name                = "apim-carlos-lab-v3"
+  name                = "apim-carlos-lab-v4"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   publisher_name      = "Carlos Lab"
@@ -143,13 +143,9 @@ resource "azurerm_api_management_api" "ticket_api" {
   api_management_name = azurerm_api_management.apim.name
   revision            = "1"
   display_name        = "Tickets Support API"
-  
-  # Cambia esto a un string vacío o solo "/"
-  # Si pones "v1", la URL final será .../v1/tickets
   path                = "" 
-  
   protocols           = ["http", "https"]
-  service_url         = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
+  service_url         = "http://lab-carlos-tickets-v4.centralus.cloudapp.azure.com"
 }
 
 resource "azurerm_api_management_api_operation" "get_tickets" {
@@ -161,7 +157,6 @@ resource "azurerm_api_management_api_operation" "get_tickets" {
   method              = "GET"
   url_template        = "/tickets"
 
-  # Corregido a singular: response
   response {
     status_code = 200
   }
@@ -176,24 +171,15 @@ resource "azurerm_api_management_api_operation" "post_ticket" {
   method              = "POST"
   url_template        = "/tickets"
 
-  # Corregido a singular: response
   response {
     status_code = 201
   }
 }
 
 # =============================================================================
-# 6. OUTPUTS (DATOS PARA TU APP)
+# 6. OUTPUTS
 # =============================================================================
 
-output "sql_server_fqdn" {
-  value = azurerm_mssql_server.sqlserver.fully_qualified_domain_name
-}
-
-output "apim_gateway_url" {
-  value = azurerm_api_management.apim.gateway_url
-}
-
 output "ingress_dns_url" {
-  value = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
+  value = "http://lab-carlos-tickets-v4.centralus.cloudapp.azure.com"
 }

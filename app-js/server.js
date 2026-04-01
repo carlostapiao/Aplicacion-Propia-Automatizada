@@ -17,15 +17,13 @@ const dbConfig = {
     }
 };
 
-// 1. RUTAS DE API (Prioridad Máxima)
+// 1. RUTAS DE API (Prioridad total)
 app.get('/tickets', async (req, res) => {
-    console.log("Petición recibida en GET /tickets"); // Log para depurar
     try {
         let pool = await sql.connect(dbConfig);
         let result = await pool.request().query('SELECT * FROM Tickets');
         res.json(result.recordset);
     } catch (err) {
-        console.error(err);
         res.status(500).send('Error en la base de datos: ' + err.message);
     }
 });
@@ -44,13 +42,13 @@ app.post('/tickets', async (req, res) => {
     }
 });
 
-// 2. ARCHIVOS ESTÁTICOS
-// Esto servirá el index.html automáticamente cuando entres a "/"
+// 2. ARCHIVOS ESTÁTICOS (Al final)
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor IT en puerto ${PORT}`);
-    // Conexión silenciosa al inicio
-    sql.connect(dbConfig).catch(err => console.log('Error SQL inicial:', err));
+    sql.connect(dbConfig)
+        .then(() => console.log('Conectado a Azure SQL con éxito'))
+        .catch(err => console.log('Error inicial SQL:', err));
 });
