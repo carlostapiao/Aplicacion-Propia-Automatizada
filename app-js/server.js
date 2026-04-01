@@ -1,11 +1,9 @@
 const express = require('express');
 const sql = require('mssql');
-const path = require('path'); // Añadido para manejar rutas de archivos
+const path = require('path');
 const app = express();
 
 app.use(express.json());
-
-// 1. CONFIGURACIÓN: Permitir que /tickets y /tickets/ funcionen igual
 app.set('strict routing', false);
 
 const dbConfig = {
@@ -19,13 +17,15 @@ const dbConfig = {
     }
 };
 
-// 2. RUTAS DE API (Deben ir ANTES de express.static)
+// 1. RUTAS DE API (Prioridad Máxima)
 app.get('/tickets', async (req, res) => {
+    console.log("Petición recibida en GET /tickets"); // Log para depurar
     try {
         let pool = await sql.connect(dbConfig);
         let result = await pool.request().query('SELECT * FROM Tickets');
         res.json(result.recordset);
     } catch (err) {
+        console.error(err);
         res.status(500).send('Error en la base de datos: ' + err.message);
     }
 });
@@ -44,17 +44,13 @@ app.post('/tickets', async (req, res) => {
     }
 });
 
-// 3. ARCHIVOS ESTÁTICOS Y RUTA RAÍZ (Al final para no pisar la API)
+// 2. ARCHIVOS ESTÁTICOS
+// Esto servirá el index.html automáticamente cuando entres a "/"
 app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('/', (req, res) => {
-    res.send('Servidor IT funcionando correctamente v3');
-});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor IT en puerto ${PORT}`);
-    sql.connect(dbConfig)
-        .then(() => console.log('Conectado a Azure SQL con éxito'))
-        .catch(err => console.log('Error inicial de conexión SQL:', err));
+    // Conexión silenciosa al inicio
+    sql.connect(dbConfig).catch(err => console.log('Error SQL inicial:', err));
 });
