@@ -1,5 +1,5 @@
 # =============================================================================
-# 1. CONFIGURACIÓN DE TERRAFORM Y BACKEND REMOTO
+# 1. CONFIGURACIÓN DE TERRAFORM Y BACKEND
 # =============================================================================
 terraform {
   backend "azurerm" {
@@ -26,7 +26,7 @@ provider "azurerm" {
 }
 
 # =============================================================================
-# 2. INFRAESTRUCTURA BASE (RG, ACR, AKS)
+# 2. INFRAESTRUCTURA BASE
 # =============================================================================
 
 resource "azurerm_resource_group" "rg" {
@@ -51,7 +51,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   default_node_pool {
     name       = "default"
     node_count = 1
-    vm_size    = "Standard_B2ps_v2" # ARM64
+    vm_size    = "Standard_B2ps_v2" 
   }
 
   identity {
@@ -59,7 +59,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
-# PERMISO CRÍTICO: AKS extrae imágenes de ACR
 resource "azurerm_role_assignment" "aks_to_acr" {
   principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
   role_definition_name             = "AcrPull"
@@ -94,7 +93,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
 }
 
 # =============================================================================
-# 4. HELM: INGRESS CONTROLLER CON DNS FIJO
+# 4. HELM E INGRESS CON DNS
 # =============================================================================
 
 provider "helm" {
@@ -113,7 +112,6 @@ resource "helm_release" "nginx_ingress" {
   namespace        = "ingress-basic"
   create_namespace = true
   
-  # DNS FIJO: Esto crea el dominio lab-carlos-v3.centralus.cloudapp.azure.com
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
     value = "lab-carlos-tickets-v3" 
@@ -123,7 +121,7 @@ resource "helm_release" "nginx_ingress" {
 }
 
 # =============================================================================
-# 5. API MANAGEMENT (APIM) COMPLETAMENTE AUTOMATIZADO
+# 5. API MANAGEMENT (APIM) - CORREGIDO
 # =============================================================================
 
 resource "azurerm_api_management" "apim" {
@@ -131,8 +129,8 @@ resource "azurerm_api_management" "apim" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   publisher_name      = "Carlos Lab"
-  publisher_email     = "admin@tudominio.com"
-  sku_name            = "Consumption_0" # Económico y rápido
+  publisher_email     = "admin@carloslab.com"
+  sku_name            = "Consumption_0"
 
   identity {
     type = "SystemAssigned"
@@ -146,18 +144,14 @@ resource "azurerm_api_management_api" "ticket_api" {
   revision            = "1"
   display_name        = "Tickets Support API"
   path                = "tickets-service"
-  protocols           = ["https"]
+  protocols           = ["http", "https"]
 
-  # APUNTA AL DNS FIJO DEL INGRESS (No importa si la IP cambia)
+  # DNS FIJO del Ingress Controller
   service_url = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
 
-  import {
-    content_format = "swagger-link-json"
-    content_value  = "http://conferenceapi.azurewebsites.net/?format=json" # Placeholder
-  }
+  # ELIMINADO bloque import que causaba el error 400
 }
 
-# OPERACIÓN GET AUTOMATIZADA
 resource "azurerm_api_management_api_operation" "get_tickets" {
   operation_id        = "get-tickets"
   api_name            = azurerm_api_management_api.ticket_api.name
@@ -167,13 +161,12 @@ resource "azurerm_api_management_api_operation" "get_tickets" {
   method              = "GET"
   url_template        = "/tickets"
 
-  # CORRECCIÓN: 'response' en singular
+  # Corregido a singular: response
   response {
     status_code = 200
   }
 }
 
-# OPERACIÓN POST AUTOMATIZADA
 resource "azurerm_api_management_api_operation" "post_ticket" {
   operation_id        = "create-ticket"
   api_name            = azurerm_api_management_api.ticket_api.name
@@ -183,8 +176,24 @@ resource "azurerm_api_management_api_operation" "post_ticket" {
   method              = "POST"
   url_template        = "/tickets"
 
-  # CORRECCIÓN: 'response' en singular
+  # Corregido a singular: response
   response {
     status_code = 201
   }
+}
+
+# =============================================================================
+# 6. OUTPUTS (DATOS PARA TU APP)
+# =============================================================================
+
+output "sql_server_fqdn" {
+  value = azurerm_mssql_server.sqlserver.fully_qualified_domain_name
+}
+
+output "apim_gateway_url" {
+  value = azurerm_api_management.apim.gateway_url
+}
+
+output "ingress_dns_url" {
+  value = "http://lab-carlos-tickets-v3.centralus.cloudapp.azure.com"
 }
