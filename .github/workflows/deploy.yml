@@ -61,3 +61,5 @@ jobs:
           # El comando apply creará el deployment it-support-deployment-v4 automáticamente
           kubectl apply -f app-js/deploy.yaml
           kubectl apply -f app-js/ingress.yaml
+
+          //////
