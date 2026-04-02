@@ -59,6 +59,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
+# Permiso para que AKS pueda jalar imágenes del ACR
 resource "azurerm_role_assignment" "aks_to_acr" {
   principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
   role_definition_name             = "AcrPull"
@@ -93,9 +94,10 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
 }
 
 # =============================================================================
-# 4. HELM (CONFIGURACIÓN DEFINITIVA PARA GITHUB ACTIONS)
+# 4. CONFIGURACIÓN DE HELM (SOLUCIÓN AL ERROR UNREACHABLE)
 # =============================================================================
 
+# Extraemos las credenciales solo cuando el AKS ya esté listo
 provider "helm" {
   kubernetes {
     host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
@@ -112,8 +114,10 @@ resource "helm_release" "nginx_ingress" {
   namespace        = "ingress-basic"
   create_namespace = true
   
-  # Esta línea es crucial para evitar el error de conexión inicial
-  wait = false
+  # Crucial para evitar que Helm falle si el API de K8s aún no responde
+  wait          = false
+  atomic        = false
+  cleanup_on_fail = true
 
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
@@ -177,4 +181,16 @@ resource "azurerm_api_management_api_operation" "post_ticket" {
   response {
     status_code = 201
   }
+}
+
+# =============================================================================
+# 6. OUTPUTS
+# =============================================================================
+
+output "acr_login_server" {
+  value = azurerm_container_registry.acr.login_server
+}
+
+output "aks_cluster_name" {
+  value = azurerm_kubernetes_cluster.aks.name
 }
