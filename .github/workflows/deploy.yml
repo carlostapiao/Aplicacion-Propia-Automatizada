@@ -21,12 +21,10 @@ jobs:
         uses: hashicorp/setup-terraform@v2
 
       - name: Terraform Init
-        # Entra a la carpeta terraform para inicializar
         run: terraform init
         working-directory: ./terraform
 
       - name: Terraform Apply
-        # Aplica los cambios desde la carpeta terraform
         run: terraform apply -auto-approve
         working-directory: ./terraform
 
@@ -60,9 +58,6 @@ jobs:
 
       - name: Deploy Kubernetes Manifests
         run: |
+          # El comando apply creará el deployment it-support-deployment-v4 automáticamente
           kubectl apply -f app-js/deploy.yaml
           kubectl apply -f app-js/ingress.yaml
-          
-      - name: Force Rollout
-        run: |
-          kubectl rollout restart deployment it-support-deployment-v4
