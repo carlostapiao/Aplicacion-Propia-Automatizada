@@ -6,7 +6,7 @@ terraform {
     resource_group_name  = "rg-apppersonal-tfstate"
     storage_account_name = "stcarlosv3state"
     container_name       = "tfstate-apppersonal"
-    key                  = "terraform-v4.tfstate" # Cambiado a v4
+    key                  = "terraform-v4.tfstate"
   }
 
   required_providers {
@@ -93,11 +93,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
 }
 
 # =============================================================================
-# 4. HELM E INGRESS CON DNS v4
-# =============================================================================
-
-# =============================================================================
-# 4. CONFIGURACIÓN DE HELM (CORREGIDA PARA CI/CD)
+# 4. HELM E INGRESS CON CREDENCIALES DINÁMICAS
 # =============================================================================
 
 provider "helm" {
@@ -109,85 +105,7 @@ provider "helm" {
   }
 }
 
-# Asegúrate de que el recurso helm_release tenga el depends_on
 resource "helm_release" "nginx_ingress" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
-  chart            = "ingress-nginx"
-  namespace        = "ingress-basic"
-  create_namespace = true
-  
-  set {
-    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
-    value = "lab-carlos-tickets-v4" 
-  }
-
-  # ESTO ES VITAL: Helm no se ejecutará hasta que el AKS esté 100% creado
-  depends_on = [azurerm_kubernetes_cluster.aks]
-}
-
-# =============================================================================
-# 5. API MANAGEMENT (APIM) v4
-# =============================================================================
-
-resource "azurerm_api_management" "apim" {
-  name                = "apim-carlos-lab-v4"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  publisher_name      = "Carlos Lab"
-  publisher_email     = "admin@carloslab.com"
-  sku_name            = "Consumption_0"
-
-  identity {
-    type = "SystemAssigned"
-  }
-}
-
-resource "azurerm_api_management_api" "ticket_api" {
-  name                = "tickets-api"
-  resource_group_name = azurerm_resource_group.rg.name
-  api_management_name = azurerm_api_management.apim.name
-  revision            = "1"
-  display_name        = "Tickets Support API"
-  path                = "" 
-  protocols           = ["http", "https"]
-  service_url         = "http://lab-carlos-tickets-v4.centralus.cloudapp.azure.com"
-}
-
-resource "azurerm_api_management_api_operation" "get_tickets" {
-  operation_id        = "get-tickets"
-  api_name            = azurerm_api_management_api.ticket_api.name
-  api_management_name = azurerm_api_management.apim.name
-  resource_group_name = azurerm_resource_group.rg.name
-  display_name        = "Listar Tickets"
-  method              = "GET"
-  url_template        = "/tickets"
-
-  response {
-    status_code = 200
-  }
-}
-
-resource "azurerm_api_management_api_operation" "post_ticket" {
-  operation_id        = "create-ticket"
-  api_name            = azurerm_api_management_api.ticket_api.name
-  api_management_name = azurerm_api_management.apim.name
-  resource_group_name = azurerm_resource_group.rg.name
-  display_name        = "Crear Ticket"
-  method              = "POST"
-  url_template        = "/tickets"
-
-  response {
-    status_code = 201
-  }
-}
-
-# =============================================================================
-# 6. OUTPUTS
-# =============================================================================
-
-output "ingress_dns_url" {
-  value = "http://lab-carlos-tickets-v4.centralus.cloudapp.azure.com"
-}
-
-// Actualización forzada v4.1
+  chart            = "ingress-
