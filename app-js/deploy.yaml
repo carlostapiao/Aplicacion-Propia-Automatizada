@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: it-support-app
-        image: acrcarlos69v3.azurecr.io/it-support-app:v4
+        image: acrcarlos69v4.azurecr.io/it-support-app:v4
         ports:
         - containerPort: 3000
         env:
