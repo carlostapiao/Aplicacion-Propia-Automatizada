@@ -183,3 +183,5 @@ resource "azurerm_api_management_api_operation" "post_ticket" {
 output "ingress_dns_url" {
   value = "http://lab-carlos-tickets-v4.centralus.cloudapp.azure.com"
 }
+
+// Actualización forzada v4.1
