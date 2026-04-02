@@ -1,34 +1,28 @@
 # =============================================================================
 # 1. CONFIGURACIÓN DE TERRAFORM Y BACKEND
 # =============================================================================
-# =============================================================================
-# 4. CONFIGURACIÓN DE HELM (CORREGIDA PARA CI/CD)
-# =============================================================================
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-apppersonal-tfstate"
+    storage_account_name = "stcarlosv3state"
+    container_name       = "tfstate-apppersonal"
+    key                  = "terraform-v4.tfstate" # Cambiado a v4
+  }
 
-provider "helm" {
-  kubernetes {
-    host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
-    client_certificate     = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_certificate)
-    client_key             = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_key)
-    cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate)
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
   }
 }
 
-# Asegúrate de que el recurso helm_release tenga el depends_on
-resource "helm_release" "nginx_ingress" {
-  name             = "ingress-nginx"
-  repository       = "https://kubernetes.github.io/ingress-nginx"
-  chart            = "ingress-nginx"
-  namespace        = "ingress-basic"
-  create_namespace = true
-  
-  set {
-    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
-    value = "lab-carlos-tickets-v4" 
-  }
-
-  # ESTO ES VITAL: Helm no se ejecutará hasta que el AKS esté 100% creado
-  depends_on = [azurerm_kubernetes_cluster.aks]
+provider "azurerm" {
+  features {}
 }
 
 # =============================================================================
@@ -102,6 +96,10 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
 # 4. HELM E INGRESS CON DNS v4
 # =============================================================================
 
+# =============================================================================
+# 4. CONFIGURACIÓN DE HELM (CORREGIDA PARA CI/CD)
+# =============================================================================
+
 provider "helm" {
   kubernetes {
     host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
@@ -111,6 +109,7 @@ provider "helm" {
   }
 }
 
+# Asegúrate de que el recurso helm_release tenga el depends_on
 resource "helm_release" "nginx_ingress" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
@@ -123,6 +122,7 @@ resource "helm_release" "nginx_ingress" {
     value = "lab-carlos-tickets-v4" 
   }
 
+  # ESTO ES VITAL: Helm no se ejecutará hasta que el AKS esté 100% creado
   depends_on = [azurerm_kubernetes_cluster.aks]
 }
 
