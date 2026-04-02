@@ -93,7 +93,7 @@ resource "azurerm_mssql_firewall_rule" "allow_azure" {
 }
 
 # =============================================================================
-# 4. HELM E INGRESS CON CREDENCIALES DINÁMICAS
+# 4. HELM (CONFIGURACIÓN DEFINITIVA PARA GITHUB ACTIONS)
 # =============================================================================
 
 provider "helm" {
@@ -112,6 +112,9 @@ resource "helm_release" "nginx_ingress" {
   namespace        = "ingress-basic"
   create_namespace = true
   
+  # Esta línea es crucial para evitar el error de conexión inicial
+  wait = false
+
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-dns-label-name"
     value = "lab-carlos-tickets-v4" 
